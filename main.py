@@ -1,16 +1,3 @@
-
-# Time log
-# 12:45 - 1:00 prototype
-
-# data processing pipeline
-
-# use case
-# execute this application
-# search the device if connected. (use COM3 for temporary..)
-#   if not found, print not found error on status bar
-#   keep searching until founding the device
-# print temperature if proximity event occurs.
-
 import sys
 import threading
 import re
@@ -28,7 +15,9 @@ def extract_body_temperature(line, otherwise=None):
 class MainUi(QtWidgets.QMainWindow):
     def __init__(self):
         super(MainUi, self).__init__()
-        uic.loadUi('main.ui', self)
+        ui_path = resource_path('main.ui')
+        print ('Load: ', ui_path)
+        uic.loadUi(ui_path, self)
         self.statusBar().showMessage('Init')
         self.show()
 
@@ -64,7 +53,7 @@ class K3ProClientThread(QThread):
             except Exception as e:
                 print (str(e))
                 self.status.emit('Error: ' + str(e))
-                QThread.sleep(1) # 1 second
+                QThread.sleep(3) # 3 second
                 continue
 
             while True:
@@ -83,6 +72,16 @@ def readline(comm, otherwise=''):
     except Exception as e:
         return otherwise
 
+def resource_path(relative_path):
+    """ Get absolute path to resource, works for dev and for PyInstaller """
+    try:
+        # PyInstaller creates a temp folder and stores path in _MEIPASS
+        base_path = sys._MEIPASS
+    except Exception:
+        base_path = os.path.abspath(".")
+
+    return os.path.join(base_path, relative_path)
+    
 def repl(port='COM3', baudrate=115200):
     print ('repl')
     comm = serial.Serial(port, baudrate)
@@ -95,7 +94,6 @@ def repl(port='COM3', baudrate=115200):
             print (f'temperature: {temperature}, classsification: {classification}')
         else:
             print ('unknown:', line)
-
 
 def run_repl():
     t = threading.Thread(target=repl)    
