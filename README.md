@@ -4,3 +4,16 @@ It reads current temperature from the device LASER-K3PRO which connected by seri
 LASER-K3PRO http://bluetrinc.cafe24.com/?p=2162
 
 Simple practice for PyQt GUI application.
+
+# Todo
+ * discovery COM port automatically
+
+# Run
+```
+python main.py
+```
+
+# Test
+```
+py.test
+```
