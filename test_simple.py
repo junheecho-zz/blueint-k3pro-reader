@@ -1,4 +1,6 @@
 import pytest
+import keyboard
+import time
 
 #from apps.main import extract_body_temperature
 from main import extract_body_temperature 
@@ -37,3 +39,13 @@ def test_body_temperature():
     for expected, line in tests:
         actual = extract_body_temperature(line, None)
         assert expected == actual
+
+def test_gen_keyevents():
+    events = '36.694'
+    print (f'key events: {events}')
+    keyboard.write(events)
+
+def test_discover_com_port():
+    pass
+    
+    

@@ -2,6 +2,10 @@ import sys
 import threading
 import re
 import serial
+import serial.tools.list_ports
+import time, os
+
+import keyboard
 
 from PyQt5 import QtWidgets, uic
 from PyQt5.QtCore import *
@@ -12,6 +16,20 @@ def extract_body_temperature(line, otherwise=None):
     matched = re.search(pattern, line)
     return (matched[1], matched[2]) if matched and matched[2] != 'ambience compensate' else otherwise
 
+def find_port(device_name='CH340', otherwise='COM1'):
+    ports = serial.tools.list_ports.comports(include_links=False)
+    for port in ports:
+        if device_name in str(port):
+            print ('FOUND', str(port))
+            return port.device
+
+    print ('cannot found device', device_name)
+    return otherwise
+
+def find_k3pro_port(otherwise='COM1'):
+    # e.g) K3PRO => 'COM3 - USB-SERIAL CH340(COM3)'
+    return find_port(device_name='CH340', otherwise=otherwise)
+    
 class MainUi(QtWidgets.QMainWindow):
     def __init__(self):
         super(MainUi, self).__init__()
@@ -25,8 +43,8 @@ class MainUi(QtWidgets.QMainWindow):
         self.k3pro_client.received.connect(self.text_edit.append)
         self.k3pro_client.status.connect(self.statusBar().showMessage)
 
-        # TODO: discover the port
-        port = self.combo_port.currentText()
+        port = find_k3pro_port(otherwise='COM1')
+        self.combo_port.setCurrentText(port)
         self.k3pro_client.set_port(port)
 
         self.combo_port.currentTextChanged.connect(self.k3pro_client.set_port)
@@ -36,7 +54,7 @@ class K3ProClientThread(QThread):
     received = QtCore.pyqtSignal(str)
     status = QtCore.pyqtSignal(str)
 
-    def __init__(self, port='COM3', baudrate=115200, parent=None):
+    def __init__(self, port='COM1', baudrate=115200, parent=None):
         super().__init__(parent)
         self.port = port
         self.baudrate = baudrate
@@ -46,7 +64,6 @@ class K3ProClientThread(QThread):
 
     def run(self):
         while True:
-            # TODO: discovery port
             try:
                 comm = serial.Serial(port=self.port, baudrate=self.baudrate)
                 self.status.emit(f'Connected {self.port}')
@@ -54,23 +71,43 @@ class K3ProClientThread(QThread):
                 print (str(e))
                 self.status.emit('Error: ' + str(e))
                 QThread.sleep(3) # 3 second
+
+                port = find_k3pro_port()
+                self.set_port(port)
                 continue
 
             while True:
-                line = readline(comm, otherwise='')
+                line = readline(comm, otherwise=None)
+                if line == None:
+                    print ('Disconnected?')
+                    comm.close()
+                    break
+
                 ret = extract_body_temperature(line)
                 if ret:
                     temperature, classification = ret
-                    print (f'temperature: {temperature}, classsification: {classification}')
+                    temperature = str(round(float(temperature),2))
+                    print (f'>> temperature: {temperature}')
                     self.received.emit('\t'.join([temperature, classification]))
+                    keyboard.write(temperature + '\n')
                 else:
-                    print ('unknown:', line)
+                    print ('INFO:', line)
 
 def readline(comm, otherwise=''):
     try:
         return comm.readline().decode().strip()
+    except UnicodeDecodeError as e:
+        print ('unicode error')
+        return ''
     except Exception as e:
+        print (str(e))
         return otherwise
+
+from itertools import cycle
+test_input = cycle(['T body = 36.562 C, week low', 'T body = 36.322 C, week low'])
+def readline_fake(comm, otherwise=''):
+    time.sleep(2)
+    return test_input.__next__()
 
 def resource_path(relative_path):
     """ Get absolute path to resource, works for dev and for PyInstaller """
@@ -88,6 +125,7 @@ def repl(port='COM3', baudrate=115200):
     count = 0
     while True:
         line = readline(comm, otherwise='')
+        print ('>', line)
         ret = extract_body_temperature(line)
         if ret:
             temperature, classification = ret
