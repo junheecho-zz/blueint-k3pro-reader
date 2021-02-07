@@ -76,6 +76,65 @@
       <string>COM8</string>
      </property>
     </item>
+    <item>
+     <property name="text">
+      <string>COM9</string>
+     </property>
+    </item>
+    <item>
+     <property name="text">
+      <string>COM10</string>
+     </property>
+    </item>
+    <item>
+     <property name="text">
+      <string>COM11</string>
+     </property>
+    </item>
+    <item>
+     <property name="text">
+      <string>COM12</string>
+     </property>
+    </item>
+    <item>
+     <property name="text">
+      <string>COM13</string>
+     </property>
+    </item>
+    <item>
+     <property name="text">
+      <string>FAKE</string>
+     </property>
+    </item>
+   </widget>
+   <widget class="QPushButton" name="connect_button">
+    <property name="geometry">
+     <rect>
+      <x>100</x>
+      <y>10</y>
+      <width>75</width>
+      <height>23</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>connect</string>
+    </property>
+   </widget>
+   <widget class="QCheckBox" name="checkbox_keyboard_event">
+    <property name="geometry">
+     <rect>
+      <x>208</x>
+      <y>11</y>
+      <width>121</width>
+      <height>20</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>    keyboard event</string>
+    </property>
+    <property name="checked">
+     <bool>true</bool>
+    </property>
    </widget>
   </widget>
   <widget class="QMenuBar" name="menubar">

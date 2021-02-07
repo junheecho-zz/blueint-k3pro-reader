@@ -5,9 +5,6 @@ LASER-K3PRO http://bluetrinc.cafe24.com/?p=2162
 
 Simple practice for PyQt GUI application.
 
-# Todo
- * discovery COM port automatically
-
 # Run
 ```
 python main.py
@@ -16,4 +13,9 @@ python main.py
 # Test
 ```
 py.test
+```
+
+# Build executable
+```
+build.bat
 ```

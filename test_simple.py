@@ -33,8 +33,11 @@ from main import extract_body_temperature
 
 def test_body_temperature():
     tests = [
-        (None,                    'T body = 36.809 C, ambience compensate'),
-        (('36.694', 'weak high'), 'T body = 36.694 C, weak high')
+        (None,      'T body = 36.809 C, ambience compensate'),
+        ('36.61',   'T body = 36.614 C, weak high'),
+        ('36.62',   'T body = 36.615, weak high'),
+        ('36.62',   'T body = 36.616 , weak high'),
+        (None,      'T body = non-digit , weak high')
     ]
     for expected, line in tests:
         actual = extract_body_temperature(line, None)

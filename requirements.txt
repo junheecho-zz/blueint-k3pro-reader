@@ -1,3 +1,4 @@
 keyboard
 PyQt5
 pyinstaller
+pystray
