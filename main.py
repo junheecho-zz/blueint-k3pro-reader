@@ -12,8 +12,11 @@ import keyboard
 from PyQt5 import QtWidgets, uic
 from PyQt5.QtCore import *
 from PyQt5 import QtCore
+import PyQt5.QtGui as QtGui
+from PyQt5.QtWidgets import (QSystemTrayIcon, QMenu, QAction)
+from PyQt5.QtGui import QIcon
 
-import pystray
+
 from PIL import Image, ImageDraw
 
 
@@ -38,10 +41,10 @@ def find_port(device_name='CH340', otherwise='COM1'):
     ports = serial.tools.list_ports.comports(include_links=False)
     for port in ports:
         if device_name in str(port):
-            print ('FOUND', str(port))
+            #print ('FOUND', str(port))
             return port.device
 
-    print ('cannot find device', device_name)
+    #print ('cannot find device', device_name)
     return otherwise
 
 def find_k3pro_port(otherwise='COM1'):
@@ -82,7 +85,7 @@ class MainUi(QtWidgets.QMainWindow):
     def init_slot_signal(self):
         self.logger = logging.Logger('k3pro')
         #self.logger.setLevel(logging.INFO)
-        self.logger.setLevel(logging.DEBUG)
+        self.logger.setLevel(logging.ERROR)
 
         self.k3pro_client = K3ProClientThread(serial=None, logger=self.logger)
         self.k3pro_client.received.connect(self.text_edit.append)
@@ -141,21 +144,26 @@ class K3ProClientThread(QThread):
 
     def __init__(self, parent=None, serial=None, logger=None):
         super().__init__(parent)
+        self.running = True
         self.serial = serial
         self.logger = logger
 
     def set_serial(self, serial):
         self.serial = serial
     
+    def stop(self):
+        self.running = False
+
     def run(self):
-        while True:
+        while self.running:
             if self.serial == None or self.serial.is_open == False:
-                self.logger.info('not connected')
+                self.logger.info('Serial device is not connected')
                 #self.status.emit('Disconnected')
                 QThread.sleep(3)
                 continue
             try:
                 line = readline(self.serial, otherwise=None)
+                self.logger.debug (f'<< {line}')
                 if line == None:
                     self.status.emit('fail to read')
                     QThread.sleep(3)
@@ -163,10 +171,9 @@ class K3ProClientThread(QThread):
 
                 temperature = extract_body_temperature(line)
                 if temperature:
-                    self.logger.debug (f'>> temperature: {temperature}')
+                    self.logger.info (f'>> {temperature}')
                     self.received.emit('\t'.join([temperature]))
-                else:
-                    self.logger.info('INFO:', line)
+
             except Exception as e:
                 print (str(e))
                 self.status.emit('Disconnected: ' + str(e))
@@ -223,29 +230,107 @@ def run_gui():
     windows = MainUi()
     app.exec_()
 
+class SystemTrayIcon(QSystemTrayIcon):
+    connection_changed = QtCore.pyqtSignal(object)
+
+    def __init__(self, icon, parent=None):
+        QSystemTrayIcon.__init__(self, icon, parent)
+        self.make_gui(icon, parent)
+        self.make_device_listener()
+    
+    def make_gui(self, icon, parent):
+        self.is_enabled_key_event = True
+        FORMAT = '%(asctime)-15s %(message)s'
+        logging.basicConfig(format=FORMAT)
+        self.logger = logging.getLogger('K3PRO tray')
+        # test
+        self.logger.setLevel(logging.ERROR)
+        menu = QMenu(parent)
+        self.setIcon(icon)
+        
+        action_keyboard_event = QAction('&Enable', self, checkable=True)
+        action_keyboard_event.setStatusTip('Enable key event')
+        action_keyboard_event.setChecked(True)
+
+        menu.addAction(action_keyboard_event)
+        action_connect = menu.addAction("Connect")
+        action_exit = menu.addAction("Exit")
+        self.setContextMenu(menu)
+    
+        action_connect.triggered.connect(lambda action: self.update_serial(serial=None))
+        action_keyboard_event.triggered.connect(self.enable_key_event)
+        action_exit.triggered.connect(QCoreApplication.quit)
+
+        self.connection_changed.connect(self.update_icon)
+        self.show()
+
+    def enable_key_event(self, enabled):
+        self.is_enabled_key_event = enabled
+
+    def make_device_listener(self):
+        logger = logging.getLogger('K3PRO')
+        logger.setLevel(logging.ERROR)
+        self.k3pro_client = K3ProClientThread(serial=None, logger=logger)
+        self.k3pro_client.received.connect(logger.info)
+        self.k3pro_client.received.connect(self.write_keyboard)
+        self.k3pro_client.status.connect(logger.info)
+
+        self.connection_changed.connect(self.k3pro_client.set_serial)
+        # MODEL update
+        self.update_serial()
+        self.k3pro_client.start()
+
+    def write_keyboard(self, message):
+        if self.is_enabled_key_event:
+            keyboard.write(message + '\n')
+        else:
+            self.logger.info('keyboard event disabled')
+
+    # update model
+    def update_serial(self, serial=None):
+        self.serial = self.find_serial_device()
+        self.connection_changed.emit(self.serial)
+
+    def find_serial_device(self):
+        self.logger.info('finding serial device...')
+        port = find_k3pro_port(otherwise=None)
+        self.logger.info(f'PORT: {port}')
+
+        # real device: auto detect serial port by searching CH340 device
+        serial = self.connect_serial(port)
+        # fake device
+        #serial = get_fake_serial()
+        self.logger.info(self.get_serial_status(serial))
+        return serial
+
+    def connect_serial(self, port):
+        try:
+            return serial.Serial(port=port, baudrate=115200)
+        except Exception as e:
+            self.logger.warning(f'Fail to connect {port}: {str(e)}')
+            return serial.Serial()
+
+    def get_serial_status(self, serial):
+        return f'Connected {serial.port}' if serial.is_open else f'Disconnected'
+
+    def update_icon(self, serial):
+        color = "green" if serial.is_open else "grey"
+        self.setIcon(color_icon(color))
+
+def color_icon(color="grey"):
+    pixmap = QtGui.QPixmap(255, 255)
+    pixmap.fill(QtGui.QColor(color))
+    return QtGui.QIcon(pixmap)
+
 def run_tray():
-    def create_image():
-        width = 32
-        height = 32
-        color1 = (128,128,128)
-        color2 = (64,64,64)
-        # Generate an image and draw a pattern
-        image = Image.new('RGB', (width, height), color1)
-        dc = ImageDraw.Draw(image)
-        dc.rectangle(
-            (width // 2, 0, width, height // 2),
-            fill=color2)
-        dc.rectangle(
-            (0, height // 2, width // 2, height),
-            fill=color2)
+    app = QtWidgets.QApplication(sys.argv)
 
-        return image    
-
-    icon = pystray.Icon('test name')
-    icon.icon = create_image()
-    icon.run()
+    w = QtWidgets.QWidget()
+    trayIcon = SystemTrayIcon(color_icon("grey"), w)
+    trayIcon.show()
+    sys.exit(app.exec_())
 
 if __name__ == '__main__':
     #run_repl()
-    run_gui()
-    #run_tray()
+    #run_gui()
+    run_tray()

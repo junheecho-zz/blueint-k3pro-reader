@@ -1,1 +1,1 @@
-pyinstaller --onefile --add-data "main.ui;." main.py
+pyinstaller --onefile --noconsole --add-data "main.ui;." main.py
